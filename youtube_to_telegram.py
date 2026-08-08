@@ -147,6 +147,13 @@ def main():
         print("[yt] First run: synchronized without posting old videos")
         return
 
+    if len(processed) == 1:
+        # Migrate the legacy single-ID state without publishing the accumulated
+        # backlog.  Only the newest current video remains eligible for posting.
+        processed.update(video["id"] for video in videos[1:])
+        save_processed_ids(processed)
+        print("[yt] Migrated legacy state; old video backlog was skipped")
+
     if not (processed & visible_ids):
         # State may contain only a Short while fallback /videos contains long videos.
         # Mark the old history and leave only the newest video for normal processing.
