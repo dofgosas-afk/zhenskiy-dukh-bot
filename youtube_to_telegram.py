@@ -84,6 +84,11 @@ def get_video_metadata(video):
     }
 
 
+def get_horizontal_ids():
+    """IDs listed on /videos; YouTube keeps Shorts on a separate tab."""
+    return {video["id"] for video in videos_from_channel_page()}
+
+
 def load_processed_ids():
     if not VIDEO_STATE_FILE.exists():
         return set()
@@ -140,6 +145,11 @@ def main():
 
     processed = load_processed_ids()
     visible_ids = {video["id"] for video in videos}
+    try:
+        horizontal_ids = get_horizontal_ids()
+    except Exception as error:
+        horizontal_ids = set()
+        print(f"[yt] Cannot load /videos filter: {error}")
 
     if not processed:
         processed.update(visible_ids)
@@ -165,11 +175,24 @@ def main():
         if video["id"] in processed:
             continue
 
-        try:
-            metadata = get_video_metadata(video)
-        except Exception as error:
-            print(f"[yt] Cannot verify {video['id']}; will retry: {error}")
-            return
+        if video["id"] in horizontal_ids:
+            # RSS contains only published entries, and /videos excludes Shorts.
+            metadata = {
+                **video,
+                "title": video.get("title") or "Новое видео",
+                "is_short": False,
+                "is_playable": True,
+            }
+        else:
+            try:
+                metadata = get_video_metadata(video)
+            except Exception as error:
+                # If the watch page is reduced on a cloud runner and the ID is
+                # absent from /videos, treat it as a Short and never publish it.
+                processed.add(video["id"])
+                save_processed_ids(processed)
+                print(f"[yt] Not listed under /videos; skipped: {video['id']} ({error})")
+                continue
 
         if metadata["is_short"]:
             processed.add(video["id"])
