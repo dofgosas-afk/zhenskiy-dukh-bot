@@ -2,14 +2,18 @@ name: Telegram Bot
 
 on:
   schedule:
-    - cron: '*/30 * * * *'   # каждые 30 минут
-  workflow_dispatch:           # ручной запуск через GitHub UI
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: telegram-bot-state
+  cancel-in-progress: false
 
 jobs:
   post:
     runs-on: ubuntu-latest
     permissions:
-      contents: write          # нужно для git push состояния
+      contents: write
 
     steps:
       - name: Checkout
@@ -20,19 +24,35 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Расписание постов
+      - name: ?????????? ??????
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         run: python telegram_schedule.py
 
-      - name: YouTube монитор
+      - name: ????????? ????????? ??????
+        if: always()
+        run: |
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git add posted_ids.txt
+          if ! git diff --staged --quiet; then
+            git commit -m "bot: save scheduled post state [skip ci]"
+            git pull --rebase
+            git push
+          fi
+
+      - name: YouTube ???????
+        continue-on-error: true
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         run: python youtube_to_telegram.py
 
-      - name: Сохранить состояние
+      - name: ????????? ????????? ?????
+        if: always()
         run: |
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git config user.name "github-actions[bot]"
-          git add posted_ids.txt last_video_id.txt 2>/dev/null || true
-          git diff --staged --quiet || (git commit -m "bot: update state [skip ci]" && git push)
+          git add last_video_id.txt
+          if ! git diff --staged --quiet; then
+            git commit -m "bot: save YouTube state [skip ci]"
+            git pull --rebase
+            git push
+          fi
